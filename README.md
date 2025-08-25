@@ -7,4 +7,4 @@ Bem-vindo ao meu repositório de estudos sobre os cursos ministrados no canal *T
 ```plaintext
 .
 ├── README.md           # Este arquivo
-└── streamlit_2025      # Curso de Streamlit 2025       (Em andamento)
+└── streamlit-2025      # Curso de Streamlit 2025       (Em andamento)
