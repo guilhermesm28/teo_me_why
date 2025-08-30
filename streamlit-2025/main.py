@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import requests
+import datetime
 
 def calc_general_stats(df):
     df_date = df.groupby(by="Data")[["Valor"]].sum()
@@ -19,6 +21,17 @@ def calc_general_stats(df):
     df_date = df_date.drop(["lag_1"], axis=1)
 
     return df_date
+
+@st.cache_data(ttl="1d")
+def get_selic():
+    url = "https://www.bcb.gov.br/api/servico/sitebcb/historicotaxasjuros"
+    resp = requests.get(url)
+    df = pd.DataFrame(resp.json()["conteudo"])
+
+    df["DataInicioVigencia"] = pd.to_datetime(df["DataInicioVigencia"]).dt.date
+    df["DataFimVigencia"] = pd.to_datetime(df["DataFimVigencia"]).dt.date
+    df["DataFimVigencia"] = df["DataFimVigencia"].fillna(datetime.datetime.today().date())
+    return df
 
 st.set_page_config(
     page_title="Finanças",
@@ -128,15 +141,26 @@ if file_upload is not None:
 
         col1.markdown(f"**Patrimônio inicial da meta:** R$ {valor_inicio:.2f}")
 
+        selic_gov = get_selic()
+        filter_selic_date = (selic_gov["DataInicioVigencia"] < data_inicio_meta) & (selic_gov["DataFimVigencia"] > data_inicio_meta)
+        selic_default = selic_gov[filter_selic_date]["MetaSelic"].iloc[0]
+
+        selic = st.number_input("Taxa Selic", min_value=0., value=selic_default, format="%.2f")
+        selic_ano = selic / 100
+        selic_mes = (selic_ano + 1) ** (1 / 12) - 1
+
+        rendimento_ano = valor_inicio * selic_ano
+        rendimento_mes = valor_inicio * selic_mes
+
         col1_pot, col2_pot = st.columns(2)
-        mensal = salario_liquido - custos_fixos
-        anual = mensal * 12
+        mensal = salario_liquido - custos_fixos + valor_inicio * selic_mes
+        anual = 12 * (salario_liquido - custos_fixos) + valor_inicio * selic_ano
 
         with col1_pot.container(border=True):
-            st.markdown(f"**Potencial arrecadação (mês):**\n\n R$ {mensal:.2f}")
+            st.markdown(f"**Potencial arrecadação (mês):**\n\n R$ {mensal:.2f}", help=f"{salario_liquido:.2f} - {custos_fixos:.2f} + {rendimento_mes:.2f}")
 
         with col2_pot.container(border=True):
-            st.markdown(f"**Potencial arrecadação (ano):**\n\n R$ {anual:.2f}")
+            st.markdown(f"**Potencial arrecadação (ano):**\n\n R$ {anual:.2f}", help=f"12 * ({salario_liquido:.2f} - {custos_fixos:.2f} + {rendimento_ano:.2f})")
 
         with st.container(border=True):
             col1_meta, col2_meta = st.columns(2)
